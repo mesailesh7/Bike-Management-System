@@ -1,0 +1,29 @@
+﻿<!-- If a feedback message exists, display it in a success alert box -->
+@if (hasFeedback)
+{
+    <MudAlert Severity="Severity.Success" Elevation="0" Dense="true">
+        @Feedback
+    </MudAlert>
+}
+
+<!-- If there is a single error message, show it in a danger alert -->
+@if (hasSingleError)
+{
+    <MudAlert Severity="Severity.Error" Elevation="0" Dense="true">
+        @ErrorMessage
+    </MudAlert>
+}
+
+<!-- If there are multiple error messages, show each one in a list inside a danger alert -->
+@if (hasMultipleErrors)
+{
+    <MudAlert Severity="Severity.Error" Elevation="0" Dense="true">
+        <ul>
+            @foreach (var error in ErrorMsgs)
+            {
+                <li>@error</li>
+            }
+        </ul>
+    </MudAlert>
+}
+

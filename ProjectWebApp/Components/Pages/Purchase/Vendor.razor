@@ -1,0 +1,92 @@
+﻿@page "/Purchase/Vendor"
+@using ProjectWebApp.Components.Dialogues
+@using Microsoft.AspNetCore.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<!--Need to sign in to see this page-->
+@attribute [Authorize]
+
+<PageTitle>Vendors</PageTitle>
+<MudText Typo="Typo.h4">Vendor List</MudText>
+
+<!--Show customized Message for different user roles-->
+@if (AuthenticationStateProvider.GetAuthenticationStateAsync()
+                        .Result.User.Identity.IsAuthenticated &&
+                        AuthenticationStateProvider.GetAuthenticationStateAsync()
+                        .Result.User.IsInRole("Parts Manager"))
+{
+    <MudText Typo="Typo.h6" Color="Color.Primary">Select a Vendor to create or edit purchase orders</MudText>
+}
+else
+{
+    <MudText Typo="Typo.h6" Color="Color.Warning">You have no permit to create or edit purchase orders</MudText>
+}
+
+<!-- Custom component to display messages (error/feedback) -->
+<DMITMessageDisplay ErrorMessage="@errorMessage" 
+                    ErrorMsgs="@errorDetails" 
+                    Feedback="@feedbackMessage" />
+
+<!-- Vendors search filters (company name) -->
+<MudGrid Style="margin-bottom: 10px">
+    <MudItem sm="12" md="6">
+        <MudStack Row
+                  Class="mt-2"
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.FlexStart"
+                  Spacing="4">
+            <!-- Description input -->
+            <MudTextField @bind-Value="company"
+                          Label="Company"
+                          Margin="Margin.Dense"
+                          Variant="Variant.Outlined"
+                          Immediate />
+            <!-- Search button -->
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       OnClick="SearchVendors">
+                Search
+            </MudButton>
+        </MudStack>
+    </MudItem>
+</MudGrid>
+
+<!--Vendors Amount-->
+<MudText><strong>Total: @Vendors.Count()</strong></MudText>
+
+<!--Data table-->
+<MudDataGrid Items="Vendors"
+             Striped="true"
+             FixedFooter="true"
+             FixedHeader="true"
+             Style="margin-top: 5px"
+             Dense="true"
+             Height="65vh">
+    <Columns>
+        @if (AuthenticationStateProvider.GetAuthenticationStateAsync()
+                                .Result.User.Identity.IsAuthenticated &&
+                                AuthenticationStateProvider.GetAuthenticationStateAsync()
+                               .Result.User.IsInRole("Parts Manager"))
+        {
+            <TemplateColumn>
+                <HeaderTemplate>Actions</HeaderTemplate>
+                <CellTemplate>
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Primary"
+                               OnClick="() => MakeOrder(context.Item.VendorID)">
+                        Select
+                    </MudButton>
+                </CellTemplate>
+            </TemplateColumn>
+        }
+        <PropertyColumn Property="x => x.VendorName" Title="Company" />
+        <PropertyColumn Property="x => x.Address" Title="Street Address" />
+        <PropertyColumn Property="x => x.City" Title="City" />
+        <PropertyColumn Property="x => x.ProvinceID" Title="Province" />
+        <PropertyColumn Property="x => x.PostalCode" Title="Postal Code" />
+        <PropertyColumn Property="x => x.Phone" Title="Phone" />
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager />
+    </PagerContent>
+</MudDataGrid>

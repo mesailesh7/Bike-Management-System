@@ -1,0 +1,152 @@
+﻿@page "/checkout"
+@using ProjectWebApp.Services
+@using SalesReturnsSystem.ViewModels
+
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+
+@attribute [Authorize(Policy = "SalesReturnsPolicy")]
+
+<AuthorizeView Policy="SalesReturnsPolicy" Context="auth">
+    <Authorized>
+        @* Show employee full *@
+        <MudText Typo="Typo.body2" Class="mb-2">
+            Employee: @auth.User.FindFirst("FullName")?.Value
+        </MudText>
+
+       
+
+        <PageTitle>Checkout</PageTitle>
+
+        <MudText Typo="Typo.h6" Class="mb-2">Checkout</MudText>
+
+        <MudPaper Class="pa-3 mb-4">
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => Navigation.NavigateTo("/products"))">Product Selector</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => Navigation.NavigateTo("/cart"))">View Cart</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="@CancelOrder">Cancel</MudButton>
+        </MudPaper>
+
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">@ErrorMessage</MudAlert>
+        }
+        @if (!string.IsNullOrWhiteSpace(Feedback))
+        {
+            <MudAlert Severity="Severity.Success" Dense="true" Class="mb-2">@Feedback</MudAlert>
+        }
+
+        <MudTable T="SaleDetailViewModel"
+                  Items="@SalesState.CartItems"
+                  Dense="true"
+                  Bordered="true"
+                  Hover="false"
+                  Elevation="0">
+
+            <HeaderContent>
+                <MudTh>Part</MudTh>
+                <MudTh>Qty</MudTh>
+                <MudTh>Price</MudTh>
+                <MudTh>Total</MudTh>
+            </HeaderContent>
+
+            <RowTemplate Context="row">
+                <MudTd>@row.PartName</MudTd>
+                <MudTd>@row.Quantity</MudTd>
+                <MudTd>@row.Price.ToString("C")</MudTd>
+                <MudTd>@row.ExtPrice.ToString("C")</MudTd>
+            </RowTemplate>
+
+        </MudTable>
+
+       @* Coupon *@ 
+        <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mt-4">Coupon</MudText>
+
+        <MudStack Row="true" Spacing="1" Class="mb-1">
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => SetCouponCode("GSTFree"))"> GSTFree </MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="@VerifyCoupon"> Verify </MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="@ClearCoupon"> Clear Coupon </MudButton>
+        </MudStack>
+
+        <MudTextField @bind-Value="CouponCode" Placeholder="Enter coupon code…" Variant="Variant.Outlined" Dense="true" Style="max-width:260px" />
+
+        <MudText Typo="Typo.caption" Class="mt-1">
+            *Coupon must be verified before it is applied.
+        </MudText>
+
+       @* Payment Type *@
+        <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mt-4">Payment Type</MudText>
+
+        <MudRadioGroup T="string"
+                       @bind-SelectedOption="PaymentType"
+                       Orientation="Orientation.Vertical"
+                       Dense="true">
+            <MudRadio T="string" Option="Cash">  Cash  </MudRadio>
+            <MudRadio T="string" Option="Debit"> Debit </MudRadio>
+            <MudRadio T="string" Option="Credit"> Credit</MudRadio>
+        </MudRadioGroup>
+
+        <MudText Typo="Typo.caption" Class="mt-1">
+            *Select payment type to complete sale.
+        </MudText>
+
+        <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mt-4">Order Totals</MudText>
+
+        <MudPaper Class="pa-0" Style="border:1px solid rgba(0,0,0,.12); border-radius:4px;">
+            <MudGrid Class="ma-0 pa-0">
+                <MudItem xs="6" Class="pa-2">Subtotal:</MudItem>
+                <MudItem xs="6" Class="pa-2">@Subtotal.ToString("C")</MudItem>
+
+                <MudItem xs="6" Class="pa-2">Discount (@DiscountPercentDisplay):</MudItem>
+                <MudItem xs="6" Class="pa-2">-@Discount.ToString("C")</MudItem>
+
+                <MudItem xs="6" Class="pa-2">Tax (5%):</MudItem>
+                <MudItem xs="6" Class="pa-2">@Tax.ToString("C")</MudItem>
+
+                <MudItem xs="6" Class="pa-2"><strong>Total:</strong></MudItem>
+                <MudItem xs="6" Class="pa-2"><strong>@Total.ToString("C")</strong></MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudStack Row="true" Spacing="1" Class="mt-2">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Disabled="@(IsWorking || SaleCompleted)"
+                       OnClick="PlaceOrder">
+                PLACE ORDER
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Secondary"
+                       Disabled="@(IsWorking)"
+                       OnClick="CancelOrder">
+                CLEAR
+            </MudButton>
+        </MudStack>
+
+        @if (SaleCompleted)
+        {
+            <MudText Typo="Typo.caption" Class="mt-2">
+                <em>Sale ID: @SaleId (shown only after completion; “Place Order” and “Cancel” disabled once placed)</em>
+            </MudText>
+        }
+
+        <style>
+            .mud-table th {
+                background-color: #e7f3ff !important;
+            }
+        </style>
+
+       
+    </Authorized>
+
+    <NotAuthorized>
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-2">
+            You do not have access to Sales &amp; Returns. Please contact an administrator.
+        </MudAlert>
+
+        
+        <MudLink Href="Identity/Account/Login" Color="Color.Primary">
+            Go to Login
+        </MudLink>
+    </NotAuthorized>
+</AuthorizeView>

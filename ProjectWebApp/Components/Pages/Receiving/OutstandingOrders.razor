@@ -1,0 +1,97 @@
+﻿@page "/receiving/outstanding"
+@using ReceivingSystem.ViewModels
+@using ProjectWebApp.Components.Dialogues
+@using Microsoft.AspNetCore.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@attribute [Authorize]
+
+<PageTitle>Receiving - Outstanding Orders</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Purchase Orders</MudText>
+
+<DMITMessageDisplay Feedback="@Feedback"
+                    ErrorMessage="@ErrorMessage"
+                    ErrorMsgs="@ErrorMsgs" />
+
+
+<AuthorizeView Roles="Parts Manager,Store Staff"> 
+
+    <NotAuthorized>
+        <MudText Typo="Typo.h6" Color="Color.Error">
+            You do not have access to this content. Please contact an admin for assistance.
+        </MudText>
+    </NotAuthorized>
+
+    <Authorized>
+
+
+        @if (purchaseOrders == null)
+        {
+            <p>Loading...</p>
+        }
+        else if (!purchaseOrders.Any())
+        {
+            <p>No outstanding purchase orders found.</p>
+        }
+        else
+        {
+            <MudDataGrid Items="purchaseOrders"
+                         Striped="true"
+                         Dense="true"
+                         FixedHeader="true"
+                         FixedFooter="true"
+                         Height="65vh"
+                         Class="mt-2">
+
+                <Columns>
+            <PropertyColumn Property="x => x.PurchaseOrderId" Title="PO #" />
+
+            <TemplateColumn Title="Date">
+                <CellTemplate Context="order">
+                    @(order.Item.OrderDate?.ToString("MMMM d") ?? "N/A")
+                </CellTemplate>
+            </TemplateColumn>
+
+            <PropertyColumn Property="x => x.Vendor" Title="Vendor" />
+            <PropertyColumn Property="x => x.ContactNumber" Title="Contact #" />
+
+            <TemplateColumn>
+                <HeaderTemplate Context="header">
+                    Action
+                </HeaderTemplate>
+                <CellTemplate Context="order">
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Primary"
+                               OnClick="() => ViewOrder(order.Item.PurchaseOrderId)">
+                        View Order
+                    </MudButton>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+                <NoRecordsContent>
+                    <MudText Typo="Typo.h6">
+                        @(!string.IsNullOrWhiteSpace(Feedback)
+                                    ? Feedback
+                                    : "No outstanding purchase orders found.")
+                    </MudText>
+            </NoRecordsContent>
+
+                <PagerContent>
+                    <MudDataGridPager />
+                </PagerContent>
+            </MudDataGrid>
+            }
+
+                <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-6">
+                <MudButton Variant="Variant.Filled"
+                       Color="Color.Warning"
+                       StartIcon="@Icons.Material.Filled.Close"
+                       OnClick="OnCloseAsync">
+                        Close
+                </MudButton>
+                </MudStack>
+
+    </Authorized>
+</AuthorizeView>

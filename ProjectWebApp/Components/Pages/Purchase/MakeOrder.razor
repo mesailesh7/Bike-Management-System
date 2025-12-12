@@ -1,0 +1,262 @@
+﻿@page "/Purchase/MakeOrder/{orderID:int}/{vendorID:int}"
+@using ProjectWebApp.Components.Dialogues
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Purchase Order Edit</PageTitle>
+
+<AuthorizeView Roles="Parts Manager">
+    <NotAuthorized>
+        <!-- Content for users not in the Parts Manager role -->
+        <MudText Typo="Typo.h6" Color="Color.Error">You do not have access to this content. Please contact an admin for assistance.</MudText>
+    </NotAuthorized>
+    <Authorized>
+        <MudText Typo="Typo.h4">
+            @(orderID == 0 ? "New Order" : $"PO #: {orderID}")
+        </MudText>
+
+       
+        <DMITMessageDisplay ErrorMessage="@errorMessage" 
+                            ErrorMsgs="@errorDetails" 
+                            Feedback="@feedbackMessage" />
+
+        
+        <MudGrid>
+          
+            <MudItem sm="12" md="6">
+                <MudPaper Elevation="2" Class="pa-2" Height="145px">
+                    <MudStack>
+                        
+                        <MudText Typo="Typo.h6" Align="Align.Center">
+                            <strong>Name: </strong>@vendor.VendorName
+                        </MudText>
+                       
+                        <MudText Typo="Typo.h6" Align="Align.Center">
+                            <strong>Phone: </strong>@vendor.Phone
+                        </MudText>
+                       
+                        <MudText Typo="Typo.h6" Align="Align.Center">
+                            <strong>Address: </strong>@vendor.Address,
+                                                      @vendor.City,
+                                                      @vendor.ProvinceID
+                                                      @vendor.PostalCode
+                        </MudText>
+                    </MudStack>
+                </MudPaper>
+            </MudItem>
+    
+        @*  Right section: Order Totals  *@
+            <MudItem sm="12" md="6">
+                <MudPaper Elevation="2" Class="pa-2" Height="145px">
+                    <MudStack>
+                      @*  SubTotal *@
+                        <MudText Typo="Typo.h6" Align="Align.Center">
+                            <string>Subtotal: </string>@order.SubTotal.ToString("C2")
+                        </MudText>
+                        <!--Tax-->
+                        <MudText Typo="Typo.h6" Align="Align.Center">
+                            <string>Subtotal: </string>@order.TaxAmount.ToString("C2")
+                        </MudText>
+                        <!-- Divider line -->
+                        <MudDivider DividerType="DividerType.Middle" />
+                        <!--Total-->
+                        <MudText Typo="Typo.h6" Align="Align.Center">
+                            <string>Total: </string>@((order.SubTotal + order.TaxAmount).ToString("C2"))
+                        </MudText>
+                    </MudStack>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        @* Part search filters (category + description) *@
+        <MudStack Row
+                  Class="mt-2"
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.FlexStart"
+                  Spacing="4">
+            @*Category dropdown *@
+            <MudSelect @bind-Value="categoryID"
+                       Dense="true"
+                       Margin="Margin.Dense"
+                       Variant="Variant.Outlined">
+                <MudSelectItem T="int" Value="0">--Category--</MudSelectItem>
+                @foreach (var category in partCategories)
+                {
+                    <MudSelectItem T="int" Value="@category.CategoryID">@category.Description</MudSelectItem>
+                }
+            </MudSelect>
+
+          @*  Description input*@
+            <MudTextField @bind-Value="description"
+                          Label="Description"
+                          Margin="Margin.Dense"
+                          Variant="Variant.Outlined"
+                          Immediate />
+
+       @* Search button*@
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       OnClick="SearchParts">
+                Search
+            </MudButton>
+        </MudStack>
+
+      @*  Parts result grid (filtered and excluding salesParts already in the order) *@
+        <MudDataGrid Items="salesParts"
+                     Striped
+                     Dense
+                     Class="mt-2"
+                     FixedFooter="true"
+                     FixedHeader="true"
+                     Height="25vh">
+            <Columns>
+                <PropertyColumn Property="x => x.PartID" Title="ID" />
+                <PropertyColumn Property="x => x.Description" Title="Description" />
+                <PropertyColumn Property="x => x.QuantityOnHand" Title="QOH" />
+                <PropertyColumn Property="x => x.ReorderLevel" Title="ROL" />
+                <PropertyColumn Property="x => x.QuantityOnOrder" Title="QOO" />
+                <PropertyColumn Property="@(x => x.PurchasePrice.ToString("F2"))" Title="Price" />
+                <TemplateColumn>
+                    <CellTemplate Context="ItemContext">
+                        <MudButton Variant="Variant.Text"
+                                    Color="Color.Success"
+                                    StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="@(() => AddPart(ItemContext.Item.PartID))">
+                            Add
+                        </MudButton>
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+
+            @* No records available message *@
+            <NoRecordsContent>
+                <MudText Typo="Typo.h6">
+                    No salesParts available
+                </MudText>
+            </NoRecordsContent>
+        </MudDataGrid>
+
+        @* Order lines grid (editable)  *@
+        <MudDataGrid Items="order.Details?.Where(x => !x.RemoveFromViewFlag)"
+                     Striped
+                     Dense
+                     Class="mt-2"
+                     FixedFooter="true"
+                     FixedHeader="true"
+                     Height="25vh"
+                     EditMode="DataGridEditMode.Cell"
+                     EditTrigger="DataGridEditTrigger.OnRowClick"
+                     ReadOnly="false">
+            <Columns>
+
+             @* Remove part button (not editable) *@
+                <TemplateColumn Editable="false">
+                    <CellTemplate Context="ItemContext">
+                        <MudButton Variant="Variant.Text"
+                                   Color="Color.Error"
+                                   StartIcon="@Icons.Material.Filled.Delete"
+                                   OnClick="@(() => DeleteDetailLine(ItemContext.Item))">
+                        </MudButton>
+                    </CellTemplate>
+                </TemplateColumn>
+
+                @*Read-only columns *@
+                <PropertyColumn Property="x => x.PartID" Title="ID" Editable="false" />
+                <PropertyColumn Property="x => x.Description" Title="Description" Editable="false" />
+                <PropertyColumn Property="x => x.QOH" Title="QOH" Editable="false" />
+                <PropertyColumn Property="x => x.ROL" Title="ROL" Editable="false" />
+                <PropertyColumn Property="x => x.QOO" Title="QOO" Editable="false" />
+
+                <!-- Editable Quantity column -->
+                <PropertyColumn Property="x => x.Quantity" Title="QTO" Editable="true">
+                    <EditTemplate Context="ItemContext">
+                        <MudNumericField Value="ItemContext.Item.Quantity"
+                                         ValueChanged="(int newQuantity) => QuantityEdited(ItemContext.Item, newQuantity)"
+                                         Immediate="true"
+                                         Margin="Margin.Dense"
+                                         For="@(() => ItemContext.Item.Quantity)"
+                                         Min="0"
+                                         Step="1" />
+                    </EditTemplate>
+                </PropertyColumn>
+        
+                <!-- Editable Price column -->
+                <PropertyColumn Property="x => x.PurchasePrice" Title="Price" Format="C2" Editable="true">
+                    <EditTemplate Context="ItemContext">
+                        <MudNumericField Value="ItemContext.Item.PurchasePrice"
+                                         ValueChanged="(decimal newPrice) => PriceEdited(ItemContext.Item, newPrice)"
+                                         Format="C2"
+                                         Immediate="true"
+                                         Margin="Margin.Dense"
+                                         For="@(() => ItemContext.Item.PurchasePrice)"
+                                         Min="0.00m"
+                                         Step="0.01m">
+                        </MudNumericField>
+                    </EditTemplate>
+                </PropertyColumn>
+
+                <!-- Sync Price button -->
+                <TemplateColumn Editable="false">
+                    <CellTemplate Context="ItemContext">
+                        <MudIconButton OnClick="() => SyncPrice(ItemContext.Item)"
+                                       Size="Size.Small"
+                                       Icon="@Icons.Material.Filled.Refresh" />
+                    </CellTemplate>
+                </TemplateColumn>
+
+                <!-- Editable Vendor Part ID -->
+                <PropertyColumn Property="x => x.VendorPartNumber" Title = "Vendor Part Number" Editable="true">
+                    <EditTemplate Context="ItemContext">
+                        <MudTextField Value="ItemContext.Item.VendorPartNumber"
+                                      ValueChanged="(string newNumber) => VendorPartNumberEdited(ItemContext.Item, newNumber)"
+                                      Immediate="true"
+                                      Margin="Margin.Dense">
+                        </MudTextField>
+                    </EditTemplate>
+                </PropertyColumn>
+            </Columns>
+
+            <!-- No records available message -->
+            <NoRecordsContent>
+                <MudText Typo="Typo.h6">
+                    No salesParts have added
+                </MudText>
+            </NoRecordsContent>
+        </MudDataGrid>
+
+        <!-- Operation buttons -->
+        <MudStack Class="mt-2"
+                  Row
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.Center">
+            <MudButton Color="Color.Primary"
+                       Variant="Variant.Filled"
+                       Disabled="@(!hasDataChanged)"
+                       OnClick="Save">
+                @saveButtonText
+            </MudButton>
+            <MudButton Color="Color.Success"
+                       Variant="Variant.Filled"
+                       Disabled="@(orderID==0 || hasDataChanged)"
+                       OnClick="Place">
+                Place
+            </MudButton>
+            <MudButton Color="Color.Error"
+                       Variant="Variant.Filled"
+                       Disabled="@(orderID==0)"
+                       OnClick="Delete">
+                Delete
+            </MudButton>
+            <MudButton Color="Color.Warning"
+                       Variant="Variant.Filled"
+                       Disabled="@(!hasDataChanged)"
+                       OnClick="Clear">
+                Clear
+            </MudButton>
+            <MudButton Color="Color.Secondary"
+                       Variant="Variant.Filled"
+                       OnClick="Close">
+                Close
+            </MudButton>
+        </MudStack>
+    </Authorized>
+</AuthorizeView>

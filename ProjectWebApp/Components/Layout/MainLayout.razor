@@ -1,0 +1,77 @@
+﻿@inherits LayoutComponentBase
+
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@using System.Security.Claims
+
+
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudStaticNavDrawerToggle DrawerId="nav-drawer" Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" />
+        <MudText Typo="Typo.h5" Class="ml-3">eBike</MudText>
+        <MudSpacer />
+        @if (AuthenticationStateProvider.GetAuthenticationStateAsync().Result.User.Identity.IsAuthenticated)
+        {
+            <MudText Class="mr-3" Typo="Typo.subtitle2">Name: @_employeeName</MudText>
+            <MudText Class="mr-3" Typo="Typo.subtitle2">ID: @_employeeID</MudText>
+            <MudText Class="mr-3" Typo="Typo.subtitle2">Roles(s): @(_employeeRoles.Any() ? string.Join(", ", _employeeRoles) : "")</MudText>
+        }
+        else
+        {
+            <MudText Class="mr-3" Typo="Typo.subtitle2">@_employeeName</MudText>
+        }
+        <MudIconButton Icon="@Icons.Material.Filled.MoreVert" Color="Color.Inherit" Edge="Edge.End" />
+    </MudAppBar>
+
+    <MudDrawer id="nav-drawer" @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+        <NavMenu />
+    </MudDrawer>
+    <MudMainContent Class="mt-16 pa-4">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+
+    @code {
+        private bool _drawerOpen = true;
+        private string? _employeeName = "Test User(No Login)";
+        private string? _employeeID = string.Empty;
+        private List<string> _employeeRoles = new();
+
+        protected override async Task OnInitializedAsync()
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                // Display FullName claim if exists or fallback to user name
+                _employeeName = user.FindFirst(c => c.Type == "FullName")?.Value
+                                ?? user.Identity.Name
+                                ?? "Unknown User";
+
+                _employeeID = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                _employeeRoles = user.FindAll(ClaimTypes.Role).Select(r => r.Value).ToList();
+            }
+            else
+            {
+                _employeeName = "Guest";
+            }
+        }
+    }
+
+
+
+

@@ -1,0 +1,113 @@
+﻿@implements IDisposable
+
+@inject NavigationManager NavigationManager
+
+<MudNavMenu>
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
+    <!--
+    <MudNavLink Href="counter" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Add">Counter</MudNavLink>
+
+    <MudNavLink Href="weather" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.List">Weather</MudNavLink>
+    -->
+
+    <MudNavLink Href="Purchase/Vendor" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AttachMoney">Purchasing Order</MudNavLink>
+
+   @* <MudNavGroup Title="Receiving" Icon="@Icons.Material.Filled.Handshake"> *@
+
+        <MudNavLink Href="/receiving/outstanding"
+                    Match="NavLinkMatch.Prefix"
+                Icon="@Icons.Material.Filled.Handshake">
+            Receiving Orders
+        </MudNavLink>
+
+
+
+    <MudNavMenu>
+
+     @*    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink> *@
+
+        <MudNavGroup Title="Sales & Returns" Icon="@Icons.Material.Filled.PointOfSale">
+
+            <MudNavGroup Title="Sales" Icon="@Icons.Material.Filled.ShoppingCart">
+                <MudNavLink Href="sales" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.PersonSearch">
+                    Customer Search
+                </MudNavLink>
+                <MudNavLink Href="products" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ViewList">
+                    Product Selector
+                </MudNavLink>
+                <MudNavLink Href="cart" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ShoppingCartCheckout">
+                    View Cart
+                </MudNavLink>
+                <MudNavLink Href="checkout" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.CreditCard">
+                    Checkout
+                </MudNavLink>
+            </MudNavGroup>
+
+            <MudNavGroup Title="Returns" Icon="@Icons.Material.Filled.Undo">
+                <MudNavLink Href="returns" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Search">
+                    Invoice Search
+                </MudNavLink>
+
+            </MudNavGroup>
+
+        </MudNavGroup>
+
+    </MudNavMenu>
+
+
+
+
+
+    <MudNavLink Href="Service/CustomerLookup" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.PersonSearch">Service</MudNavLink>
+
+
+    <MudNavLink Href="auth" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Lock">Auth Required</MudNavLink>
+    <AuthorizeView>
+        <Authorized>
+            <MudNavLink Href="Account/Manage" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Person">@(string.IsNullOrWhiteSpace(fullName) ? context.User.Identity?.Name : fullName)</MudNavLink>
+            <form action="Account/Logout" method="post">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+                <button type="submit" class="mud-nav-link mud-ripple">
+                    <MudIcon Icon="@Icons.Material.Filled.Logout" Color="Color.Info" Class="mr-3"></MudIcon> Logout
+                </button>
+            </form>
+        </Authorized>
+        <NotAuthorized>
+            <MudNavLink Href="Account/Register" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Person">Register</MudNavLink>
+            <MudNavLink Href="Account/Login" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Password">Login</MudNavLink>
+        </NotAuthorized>
+    </AuthorizeView>
+</MudNavMenu>
+
+
+@code {
+    private string fullName = string.Empty;
+    private string? currentUrl;
+
+    [Inject]
+    protected AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.LocationChanged += OnLocationChanged;
+
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var claims = state.User.Claims.ToList();
+        fullName = claims.FirstOrDefault(c => c.Type.Equals("FullName", StringComparison.InvariantCultureIgnoreCase))?.Value ?? "";
+
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}
+

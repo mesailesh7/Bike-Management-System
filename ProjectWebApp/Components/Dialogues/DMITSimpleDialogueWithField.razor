@@ -1,0 +1,27 @@
+﻿<MudDialog>
+    <DialogContent>
+
+        <!-- Title for the dialog box -->
+        <MudText Typo="Typo.h6">Enter Feedback</MudText>
+
+        <!-- Input field for user feedback.
+             The value is bound to feedbackText in the code-behind. -->
+        <MudTextField @bind-Value="feedbackText" Label="Feedback" FullWidth="true" />
+
+    </DialogContent>
+
+    <DialogActions>
+
+        <!-- Button that closes the dialog and submits the feedback -->
+        <MudButton Color="@Color" OnClick="Submit">
+            @ButtonText
+        </MudButton>
+
+        <!-- Button that cancels the dialog without submitting -->
+        <MudButton Color="Color.Secondary" OnClick="Cancel">
+            Cancel
+        </MudButton>
+
+    </DialogActions>
+</MudDialog>
+

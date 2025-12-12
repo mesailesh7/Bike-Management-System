@@ -1,0 +1,139 @@
+﻿@page "/cart"
+
+@using MudBlazor
+@using ProjectWebApp.Services
+
+
+@using System.Security.Claims                     
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "SalesReturnsPolicy")]
+@inject AuthenticationStateProvider AuthenticationStateProvider  
+
+@inject NavigationManager Navigation
+@inject SalesStateService SalesState
+
+<AuthorizeView Policy="SalesReturnsPolicy" Context="auth">   
+
+    <Authorized>  
+        <MudText Typo="Typo.body2" Class="mb-2">
+            Employee: @auth.User.FindFirst("FullName")?.Value
+        </MudText>
+
+     
+        <MudText Typo="Typo.h6" Class="mb-2">Cart</MudText>
+
+        <MudPaper Class="pa-3 mb-4">
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => Navigation.NavigateTo("/sales"))">Customer Search</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => Navigation.NavigateTo("/products"))">Product Selector</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => Navigation.NavigateTo("/checkout"))">Checkout</MudButton>
+        </MudPaper>
+
+        @if (SalesState.CartItems.Any())
+        {
+            <MudTable Items="SalesState.CartItems" Dense="true" Bordered="true" Hover="true" Class="custom-cart-table">
+                <HeaderContent>
+                    <MudTh>Part</MudTh>
+                    <MudTh>Price</MudTh>
+                    <MudTh>QOH</MudTh>
+                    <MudTh>Quantity</MudTh>
+                    <MudTh>Ext Price</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.PartName</MudTd>
+                    <MudTd>@context.Price.ToString("C")</MudTd>
+                    <MudTd>@context.QOH</MudTd>
+                    <MudTd>
+                        <MudNumericField T="int"
+                                         Min="1"
+                                         Max="@context.QOH"
+                                         Value="@context.Quantity"
+                                         ValueChanged="@(v => UpdateQty(context.PartID, v))"
+                                         Immediate="true"
+                                         Variant="Variant.Outlined"
+                                         Dense="true"
+                                         Style="width:80px;" />
+                    </MudTd>
+
+                    <MudTd>@((context.Price * context.Quantity).ToString("C"))</MudTd>
+
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Color="Color.Error"
+                                       OnClick="@(() => RemoveItem(context.PartID))" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+        else
+        {
+            <MudText Class="mt-4" Color="Color.Secondary"> Your cart is empty. Go to Product Selector to add items.</MudText>
+        }
+
+        <MudText Typo="Typo.caption" Class="mt-2">
+            <ul>
+                <li>QOH shows current stock on hand.</li>
+                <li>Quantity must not exceed QOH.</li>
+            </ul>
+        </MudText>
+
+        <MudText Typo="Typo.body1" Class="mt-3">
+            <strong>Subtotal:</strong> @Subtotal.ToString("C")&emsp;
+            <strong>Tax (5%):</strong> @Tax.ToString("C")&emsp;
+            <strong>Total:</strong> @Total.ToString("C")
+        </MudText>
+       
+        
+    </Authorized>                                            
+
+    <NotAuthorized>                                          
+        @if (auth.User?.Identity?.IsAuthenticated ?? false)
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">
+                Access denied. This page is for <b>Sales Manager</b>, <b>Store Staff</b>, or <b>Salesperson</b>.
+            </MudAlert>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">
+                You are not logged in. Please <a href="Identity/Account/Login">log in</a>.
+            </MudAlert>
+        }
+    </NotAuthorized>                                         
+
+</AuthorizeView>                                            
+
+@code {
+    private decimal Subtotal => SalesState.CartItems.Sum(i => i.Price * i.Quantity);
+    private decimal Tax => Subtotal * 0.05m;
+    private decimal Total => Subtotal + Tax;
+
+    private void UpdateQty(int partId, int newQty)
+    {
+        var item = SalesState.CartItems.FirstOrDefault(i => i.PartID == partId);
+        if (item != null)
+        {
+            item.Quantity = newQty;
+        }
+    }
+
+    private void RemoveItem(int partId)
+    {
+        var item = SalesState.CartItems.FirstOrDefault(i => i.PartID == partId);
+        if (item != null)
+        {
+            SalesState.CartItems.Remove(item);
+        }
+    }
+}
+
+<style>
+    .mud-table th {
+        background-color: #e7f3ff !important;
+        border-left: 1px solid #ccc;
+        border-right: 1px solid #ccc;
+    }
+
+    .custom-cart-table {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+</style> 

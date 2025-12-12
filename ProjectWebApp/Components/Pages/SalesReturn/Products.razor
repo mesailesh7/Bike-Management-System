@@ -1,0 +1,137 @@
+﻿@using SalesReturnsSystem.ViewModels
+@using ProjectWebApp.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "SalesReturnsPolicy")]
+
+@page "/products"
+@inject ProjectWebApp.Services.SalesStateService SalesState
+@inject NavigationManager Navigation
+@inject SalesService SalesService
+
+<AuthorizeView Policy="SalesReturnsPolicy">
+    <Authorized>
+        <PageTitle>Product Selector</PageTitle>
+
+        <MudText Typo="Typo.h6" Class="mb-2"> Product Selector </MudText>
+
+        <MudPaper Class="pa-3 mb-4">
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => Navigation.NavigateTo("/customer-search"))">Customer Search</MudButton>
+            <MudButton Variant="Variant.Outlined" Disabled>Product Selector</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => Navigation.NavigateTo("/cart"))">View Cart</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => Navigation.NavigateTo("/checkout"))">Checkout</MudButton>
+        </MudPaper>
+
+        <MudText Typo="Typo.subtitle1">Select Category:</MudText>
+
+        <MudSelect T="CategoryViewModel" Label="Category" @bind-Value="selectedCategory" Dense="true">
+            @foreach (var cat in categories)
+            {
+                <MudSelectItem T="CategoryViewModel" Value="@cat">@($"{cat.Description} ({cat.ItemCount})")</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudPaper Class="mt-4 px-2 py-2" Style="border-left: 1px solid lightgray; border-right: 1px solid lightgray;">
+            <MudTable Items="categories" Dense="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>Category</MudTh>
+                    <MudTh>Action</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="cat">
+                    <MudTd>@($"{cat.Description} ({cat.ItemCount})")</MudTd>
+                    <MudTd>
+                        <MudButton Variant="Variant.Text" OnClick="@(() => SelectCategory(cat))">Select</MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+
+        <MudText Typo="Typo.subtitle1" Class="mt-4">Select Part & Quantity:</MudText>
+
+        <MudPaper Class="px-2 py-2" Style="border-left: 1px solid lightgray; border-right: 1px solid lightgray;">
+            <MudTable Items="filteredParts" Dense="true">
+                <HeaderContent>
+                    <MudTh>Part with QOH</MudTh>
+                    <MudTh>Action</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="part">
+                    <MudTd>@($"{part.PartName} ({part.QOH})")</MudTd>
+                    <MudTd>
+                        <MudButton Variant="Variant.Text" OnClick="@(() => AddToCart(part))">Add</MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+
+        <MudButton Class="mt-2" Variant="Variant.Filled" Color="Color.Secondary" OnClick="ClearSelection">Clear</MudButton>
+
+        <MudText Typo="Typo.caption" Class="mt-2">
+            <ul>
+                <li><strong>Clear</strong> resets Category, Part & Quantity inputs.</li>
+                <li><strong>Add</strong> appends the item to the Cart and recalculates all totals.</li>
+            </ul>
+        </MudText>
+
+        @code {
+        private List<CategoryViewModel> categories = new();
+        private List<PartViewModel> parts = new();
+        private List<PartViewModel> filteredParts = new();
+        private CategoryViewModel? selectedCategory;
+
+        protected override async Task OnInitializedAsync()
+        {
+            categories = await _salesService.GetCategoriesAsync();
+            parts = await _salesService.GetPartsAsync();
+            filteredParts = parts;
+        }
+
+        private void SelectCategory(CategoryViewModel category)
+        {
+            selectedCategory = category;
+            filteredParts = parts.Where(p => p.CategoryID == category.CategoryID).ToList();
+        }
+
+        private void AddToCart(PartViewModel part)
+        {
+            var item = new SaleDetailViewModel
+            {
+                PartID = part.PartID,
+                PartName = part.PartName,
+                Price = part.Price,
+                QOH = part.QOH,
+                Quantity = 1
+            };
+            SalesState.AddToCart(item);
+        }
+
+        private void ClearSelection()
+        {
+            selectedCategory = null;
+            filteredParts = parts;
+        }
+
+        [Inject] private SalesService _salesService { get; set; } = default!;
+        // [Inject] private SalesStateService _salesState { get; set; } = default!;
+        // [Inject] private SalesStateService salesState { get; set; } = default!;
+        }
+
+        <style>
+            .mud-table th {
+                background-color: #e7f3ff !important;
+                border-left: 1px solid #ccc;
+                border-right: 1px solid #ccc;
+            }
+
+            .custom-cart-table {
+                border: 1px solid #ccc;
+                border-radius: 4px;
+            }
+        </style>
+    </Authorized>
+
+    <NotAuthorized>
+        <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">
+            You are not authorized to access Sales &amp; Returns. Please log in with a role of
+            <b>Sales Manager</b>, <b>Store Staff</b>, or <b>Salesperson</b>.
+        </MudAlert>
+    </NotAuthorized>
+</AuthorizeView>

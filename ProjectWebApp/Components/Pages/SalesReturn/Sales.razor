@@ -1,0 +1,87 @@
+﻿@page "/sales"
+@page "/customer-search"
+@using SalesReturnsSystem.ViewModels
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "SalesReturnsPolicy")]
+
+<PageTitle>Customer</PageTitle>
+
+<AuthorizeView Policy="SalesReturnsPolicy">
+    <Authorized>
+        <MudText Typo="Typo.h6" Class="mb-2"> Customer Information </MudText>
+
+        <MudStack Row="true" Spacing="2">
+            <MudButton Variant="Variant.Outlined" OnClick="NavigateToProductSelector">Product Selector</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="NavigateToCart">View Cart</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="NavigateToCheckout">Checkout</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="@(async () => await Cancel())">Cancel</MudButton>
+        </MudStack>
+
+        <MudStack Row="true" Spacing="2">
+            <MudTextField @bind-Value="phoneSearch" Label="Phone Number (Partial)" Immediate="true" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SearchCustomers">SEARCH</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="ClearSearch">CLEAR</MudButton>
+        </MudStack>
+
+        @if (salesCustomers != null && salesCustomers.Any())
+        {
+            <MudPaper Class="mt-4">
+                <MudTable T="CustomerViewModel"
+                          Items="@salesCustomers"
+                          Dense="true"
+                          Striped="true">
+                    <HeaderContent>
+                        <MudTh>Name</MudTh>
+                        <MudTh>Phone</MudTh>
+                        <MudTh>Address</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+
+                    <RowTemplate Context="row">
+                        <MudTd>@($"{row.FirstName} {row.LastName}")</MudTd>
+                        <MudTd>@row.ContactPhone</MudTd>
+                        <MudTd>@($"{row.Address}, {row.City}")</MudTd>
+                        <MudTd>
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Primary"
+                                       OnClick="@(async () => await ConfirmCustomerChange(row))">
+                                Select
+                            </MudButton>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+
+            @* use the single confirm dialog state from the code-behind *@
+            <MudDialog @bind-IsVisible="_confirmDialogVisible">
+                <DialogContent>
+                    @_confirmMessage
+                </DialogContent>
+                <DialogActions>
+                    <MudButton Color="Color.Primary" OnClick="@(() => ConfirmResult(true))">Yes</MudButton>
+                    <MudButton Color="Color.Secondary" OnClick="@(() => ConfirmResult(false))">No</MudButton>
+                </DialogActions>
+            </MudDialog>
+        }
+    </Authorized>
+
+    <NotAuthorized>
+        <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">
+            You are not authorized to access Sales &amp; Returns. Please log in with a role of
+            <b>Sales Manager</b>, <b>Store Staff</b>, or <b>Salesperson</b>.
+        </MudAlert>
+    </NotAuthorized>
+</AuthorizeView>
+
+<style>
+    .mud-table th {
+        background-color: #e7f3ff !important;
+        border-left: 1px solid #ccc;
+        border-right: 1px solid #ccc;
+    }
+
+    .custom-cart-table {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+</style>

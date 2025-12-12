@@ -1,0 +1,215 @@
+﻿@page "/returns/info/{SaleId:int}"
+@using MudBlazor
+@using SalesReturnsSystem.ViewModels
+
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+
+@inject SalesReturnsSystem.BLL.ReturnService ReturnService
+@inject SalesReturnsSystem.BLL.ReturnTransactionService TxService
+@inject NavigationManager Nav
+
+@attribute [Authorize(Policy = "SalesReturnsPolicy")]
+
+<PageTitle>Sales Return</PageTitle>
+
+<AuthorizeView Policy="SalesReturnsPolicy" Context="auth">
+    <Authorized>
+        <!-- Employee full name from claims (shown like Checkout/Cart) -->
+        <MudText Typo="Typo.body2" Class="mb-2">
+            Employee: @auth.User.FindFirst("FullName")?.Value
+        </MudText>
+
+        @if (!string.IsNullOrWhiteSpace(Error))
+        {
+            <MudAlert Severity="Severity.Error">@Error</MudAlert>
+        }
+        else if (Model is null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else
+        {
+            <!-- 2) Sale Information -->
+            <MudText Typo="Typo.h6" Class="mb-2">2) Sale Information</MudText>
+
+            <table class="mud-table mud-elevation-1" style="width:100%">
+                <thead>
+                    <tr>
+                        <th style="width:220px">Field</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Sale Invoice #</td><td>@Model.SaleId</td></tr>
+                    <tr><td>Customer</td><td>@Model.CustomerName</td></tr>
+                    <tr><td>Date</td><td>@Model.SaleDate.ToString("MMM dd, yyyy")</td></tr>
+                    <tr><td>Discount %</td><td>@(Model.DiscountPercent.ToString("P0"))</td></tr>
+                    <tr><td>Payment Method</td><td>@Model.PaymentMethod</td></tr>
+                </tbody>
+            </table>
+
+            <!-- 3) Sale Parts -->
+            <MudText Typo="Typo.h6" Class="mt-6 mb-2">3) Sale Parts</MudText>
+
+            <table class="mud-table mud-elevation-1" style="width:100%">
+                <thead>
+                    <tr>
+                        <th>Part Name</th>
+                        <th>Orig Qty</th>
+                        <th>Returned</th>
+                        <th>Price</th>
+                        <th>Refundable</th>
+                        <th style="width:180px">Qty to Return</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Items)
+                    {
+                        var remaining = row.OriginalQty - row.AlreadyReturned;
+                        <tr>
+                            <td>@row.PartName</td>
+                            <td>@row.OriginalQty</td>
+                            <td>@row.AlreadyReturned</td>
+                            <td>@row.Price.ToString("C")</td>
+                            <td>@(row.Refundable ? "Y" : "N")</td>
+                            <td>
+                                @if (row.Refundable && remaining > 0)
+                                {
+                                    <MudNumericField @bind-Value="row.QtyToReturn"
+                                                     Min="0"
+                                                     Max="@(remaining)"
+                                                     Step="1" Dense="true" Immediate="true" />
+                                }
+                                else
+                                {
+                                    <MudText>0</MudText>
+                                }
+                            </td>
+                            <td>
+                                @if (row.Refundable && row.QtyToReturn > 0)
+                                {
+                                    <MudTextField @bind-Value="row.Reason"
+                                                  Placeholder="Reason…" Dense="true" />
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="7" style="text-align:right; padding:12px">
+                            <b>Subtotal:</b> @Model.Subtotal.ToString("C") &nbsp;&nbsp;
+                            <b>Discount:</b> @Model.Discount.ToString("C") &nbsp;&nbsp;
+                            <b>Tax:</b> @Model.Tax.ToString("C") &nbsp;&nbsp;
+                            <b>Total:</b> @Model.Total.ToString("C")
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div class="mt-2" style="font-size:.9rem">
+                <b>Note:</b>
+                <ul style="margin-top:4px">
+                    <li>Returned quantity cannot exceed (Orig Qty – Returned).</li>
+                    <li>Tax is 5% of (Subtotal – Discount).</li>
+                </ul>
+            </div>
+
+            <!-- 4) Actions -->
+            <MudText Typo="Typo.h6" Class="mt-6 mb-1">4) Actions</MudText>
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           Disabled="@(!CanProcess)" OnClick="ProcessReturnAction">Process Return</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@Cancel">Cancel</MudButton>
+            </MudStack>
+
+            @if (ProcessedRefundId > 0)
+            {
+                <MudAlert Severity="Severity.Success" Class="mt-3">
+                    Return processed. Refund ID: <b>@ProcessedRefundId</b>
+                </MudAlert>
+            }
+        }
+
+        <style>
+            .mud-table th {
+                background-color: #e7f3ff !important;
+            }
+        </style>
+    </Authorized>
+
+    <NotAuthorized>
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-2">
+            You do not have access to Sales &amp; Returns. Please contact an administrator.
+        </MudAlert>
+        <MudLink Href="Identity/Account/Login" Color="Color.Primary">
+            Go to Login
+        </MudLink>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter] public int SaleId { get; set; }
+
+    private SaleReturnViewModel? Model;
+    private string Error = string.Empty;
+    private int ProcessedRefundId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Model = await ReturnService.GetSaleReturnAsync(SaleId);
+            if (Model is null)
+            {
+                Error = $"No sale found for invoice #{SaleId}.";
+            }
+            else
+            {
+                // ensure clean edit state
+                foreach (var i in Model.Items) { i.QtyToReturn = 0; i.Reason = string.Empty; }
+            }
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+    }
+
+    private bool CanProcess =>
+        Model is not null && Model.Items.Any(i => i.QtyToReturn > 0 && !string.IsNullOrWhiteSpace(i.Reason));
+
+    private async Task ProcessReturnAction()
+    {
+        if (Model is null) return;
+
+        // Server-side safety checks happen inside the service
+        var req = new ReturnRequestViewModel
+            {
+                SaleId = Model.SaleId,
+                Items = Model.Items
+                    .Where(i => i.QtyToReturn > 0)
+                    .Select(i => new ReturnRequestLineViewModel
+                    {
+                        PartId = i.PartId,
+                        Qty = i.QtyToReturn,
+                        Price = i.Price,
+                        Reason = i.Reason
+                    }).ToList()
+            };
+
+        try
+        {
+            ProcessedRefundId = await TxService.ProcessReturnAsync(req);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+    }
+
+    private void Cancel() => Nav.NavigateTo("/returns");
+}

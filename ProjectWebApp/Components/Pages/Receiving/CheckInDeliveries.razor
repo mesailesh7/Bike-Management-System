@@ -1,0 +1,254 @@
+﻿@page "/receiving/checkin/{poId:int}"
+@using ReceivingSystem.ViewModels
+@using ProjectWebApp.Components.Dialogues
+@using Microsoft.AspNetCore.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+
+
+
+<PageTitle>Receiving - Check-In Deliveries</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Receiving Details</MudText>
+
+<DMITMessageDisplay Feedback="@Feedback"
+                    ErrorMessage="@ErrorMessage"
+                    ErrorMsgs="@ErrorMsgs" />
+
+<AuthorizeView Roles="Parts Manager,Store Staff">
+
+    <NotAuthorized>
+        <MudText Typo="Typo.h6" Color="Color.Error">
+            You do not have access to this content. Please contact an admin for assistance.
+        </MudText>
+    </NotAuthorized>
+    <Authorized>
+
+
+        @if (poHeader != null)
+        {
+            <MudPaper Class="pa-3 my-3">
+                <MudText Typo="Typo.h6">Selected PO #: @poHeader.PurchaseOrderId</MudText>
+                <MudText><b>Vendor:</b> @poHeader.Vendor</MudText>
+                <MudText><b>Phone:</b> @poHeader.ContactNumber</MudText>
+            </MudPaper>
+        }
+        else
+        {
+            <p>No purchase order header found.</p>
+        }
+
+        @if (orderDetails == null || !orderDetails.Any())
+        {
+            <p>No order details available.</p>
+        }
+        else
+        {
+
+            <MudForm @ref="receivingForm" @bind-IsValid="_isValid">
+                <MudDataGrid Items="orderDetails"
+                             Striped="true"
+                             Dense="true"
+                             FixedHeader="true"
+                             FixedFooter="true"
+                             Height="65vh"
+                             Class="mb-4">
+
+                    <Columns>
+
+                        <PropertyColumn Property="x => x.PartId" Title="Part ID" />
+                        <PropertyColumn Property="x => x.Description" Title="Description" />
+                        <PropertyColumn Property="x => x.OrderQty" Title="Order Qty" />
+                        <PropertyColumn Property="x => x.OutstandingBase" Title="Previous Outstanding" />
+                        <PropertyColumn Property="x => x.Outstanding" Title="Outstanding" />
+
+                        <TemplateColumn Title="Received">
+                            <CellTemplate Context="ItemContext">
+                                <MudNumericField T="int?"
+                                                 Value="@( (int?)ItemContext.Item.Received )"
+                                                 ValueChanged="@(v => OnReceivedChanged(ItemContext.Item, v ?? 0))"
+                                                 Immediate="true"
+                                                 Variant="Variant.Outlined"
+                                                 Required="true"
+                                                 RequiredError="Received qty required."
+                                                 Validation="@(new Func<int?, string?>(v => ValidateReceived(ItemContext.Item, v)))"
+                                                 Error="@(ItemContext.Item.Received < 0 || ItemContext.Item.Received > ItemContext.Item.OutstandingBase)"
+                                                 ErrorText="@((ItemContext.Item.Received < 0) ? "Received cannot be negative."
+                                                                         : (ItemContext.Item.Received > ItemContext.Item.OutstandingBase)
+                                                                         ? $"Received cannot exceed Outstanding ({ItemContext.Item.OutstandingBase})."
+                                                                         : null)"
+                                                 HelperText="@GetHelperText(ItemContext.Item)" />
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                         <TemplateColumn Title="Returned">
+                            <CellTemplate Context="ItemContext">
+                                <MudNumericField T="int"
+                                                 Value="ItemContext.Item.Returned"
+                                                 ValueChanged="@(v => OnReturnedChanged(ItemContext.Item, v))"
+                                                 Immediate="true"
+                                                 Variant="Variant.Outlined"
+                                                 Error="@(ItemContext.Item.Returned < 0)"
+                                                 ErrorText="Returned cannot be negative." />
+                            </CellTemplate>
+                        </TemplateColumn> 
+
+
+
+
+                        <TemplateColumn Title="Reason">
+                            <CellTemplate Context="ItemContext">
+                                <MudTextField Value="ItemContext.Item.Reason"
+                                              ValueChanged="@((string v) => OnReasonChanged(ItemContext.Item, v))"
+                                              Immediate="true"
+                                              Variant="Variant.Outlined"
+                                              Disabled="@(ItemContext.Item.Returned < 0)"
+                                              Required="true"
+                                              RequiredError="Reason required when returning items."
+                                              OnBlur="@(e => RefreshValidation(ItemContext.Item))" />
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+
+                    <NoRecordsContent>
+                        <MudText Typo="Typo.body2">No order details available.</MudText>
+                    </NoRecordsContent>
+
+                    <PagerContent>
+                        <MudDataGridPager />
+                    </PagerContent>
+                </MudDataGrid>
+            </MudForm>
+                }
+
+        <!-- Buttons -->
+        <MudPaper Class="pa-4 mt-4" Style="width: 100%;">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.Center"  Spacing="6">
+                <MudStack Spacing="2" Style="max-width: 350px;">
+
+                 @if (IsAuthenticated && IsPartsManager)
+                 {
+                    <MudTextField Label="Reason for Closing"
+                                  @bind-Value="forceCloseReason"
+                                  Variant="Variant.Outlined"
+                                  Immediate="true"
+                                  Placeholder="Enter reason..." />
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.Block"
+                               OnClick="OnForceCloseAsync"
+                               Disabled="@string.IsNullOrWhiteSpace(forceCloseReason)">
+                        FORCE CLOSE
+                    </MudButton>
+                 }
+                </MudStack>
+               
+                <MudStack Row="true" AlignItems="AlignItems.End" Spacing="3" Justify="Justify.FlexEnd">
+                        <MudButton Variant="Variant.Filled"
+                        Color="Color.Success"
+                        StartIcon="@Icons.Material.Filled.CheckCircle"
+                        Disabled="@(!CanReceive)"
+                        OnClick="OnReceive">
+                            RECEIVE
+                        </MudButton>
+                        <MudButton Variant="Variant.Filled"
+                        Color="Color.Secondary"
+                        StartIcon="@Icons.Material.Filled.RestartAlt"
+                        OnClick="OnResetAsync">
+                            RESET
+                        </MudButton>
+                        <MudButton Variant="Variant.Filled"
+                        Color="Color.Warning"
+                               StartIcon="@Icons.Material.Filled.Close"
+                               OnClick="OnCancelAsync">
+                            CLOSE
+                    </MudButton>
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+
+
+        @if (IsAuthenticated && IsPartsManager)
+        {
+        <MudPaper Class="pa-4 mt-5">
+            <MudText Typo="Typo.h6" Class="mb-3">Unordered Items to Return</MudText>
+            <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center">
+                <MudTextField Label="Item Description"
+                              @bind-Value="newUnordered.Description"
+                              Immediate="true"
+                              Variant="Variant.Outlined"
+                              Style="max-width: 250px;" />
+
+                <MudTextField Label="Vendor Part ID"
+                              @bind-Value="newUnordered.VendorPartId"
+                              Immediate="true"
+                              Variant="Variant.Outlined"
+                              Style="max-width: 200px;" />
+
+                <MudNumericField T="int" Label="Quantity"
+                                 Value="newUnordered.Quantity"
+                                 ValueChanged="@(v => OnUnorderedQtyChanged(v))"
+                                 Immediate="true"
+                                 Variant="Variant.Outlined"
+                                 Error="@_unorderedQtyError"
+                                 ErrorText="Quantity must be greater than 0"
+                                 Style="max-width: 120px;" />
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.AddCircle"
+                           Disabled="@(!IsUnorderedValid())"
+                           OnClick="AddUnorderedItem">
+                    INSERT
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.Clear"
+                           OnClick="ClearNewUnordered">
+                    CLEAR
+                </MudButton>
+            </MudStack>
+
+            @if (unorderedItems.Any())
+            {
+                <MudTable Items="@unorderedItems" Dense="true" Hover="true" Class="mt-4">
+                    <HeaderContent>
+                        <MudTh></MudTh>
+                        <MudTh>Description</MudTh>
+                        <MudTh>Vendor Part ID</MudTh>
+                        <MudTh>Qty</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="row">
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                           Color="Color.Error"
+                                           OnClick="@(async () => await RemoveUnorderedItem(row))"
+                                           Title="Delete Item" />
+                        </MudTd>
+                        <MudTd>@row.Description</MudTd>
+                        <MudTd>@row.VendorPartId</MudTd>
+                        <MudTd>@row.Quantity</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mt-3">No unordered items added.</MudText>
+            }
+                
+           
+        </MudPaper>
+      }
+
+        @if (_showSaveCancelButtons)
+        {
+            <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2" Class="mt-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="SaveChanges">Save</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="CancelChanges">Cancel</MudButton>
+            </MudStack>
+        }
+
+    </Authorized>
+
+</AuthorizeView>
