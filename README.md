@@ -40,7 +40,7 @@ Ensure you have the following installed:
 
 1.  **Clone the Repository**
     ```bash
-    git clone [https://github.com/your-username/your-repo-name.git](https://github.com/your-username/your-repo-name.git)
+    git clone https://github.com/mesailesh7/Bike-Management-System.git
     cd your-repo-name
     ```
 
