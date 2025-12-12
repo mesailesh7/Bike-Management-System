@@ -41,7 +41,7 @@ Ensure you have the following installed:
 1.  **Clone the Repository**
     ```bash
     git clone https://github.com/mesailesh7/Bike-Management-System.git
-    cd your-repo-name
+    cd Bike-Manage-System
     ```
 
 2.  **Database Configuration**
